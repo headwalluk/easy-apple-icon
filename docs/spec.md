@@ -76,9 +76,10 @@ serves the home URL) plus the filename, so the web server serves it from then on
 
 The site root is `ABSPATH` when `home` equals `siteurl`. For "WordPress in its own directory"
 installs, it is `ABSPATH` with the WordPress directory (`siteurl` less `home`) stripped from the
-end. Core's `get_home_path()` is only the fallback, for layouts where that doesn't match: it reads
+end. If the layout doesn't match (an alias or symlink), the site root is unknown: serve dynamically,
+record it once, and write nothing. Core's `get_home_path()` is not used: it reads
 `SCRIPT_FILENAME`, which is right in wp-admin but gives `/` on a front-end request and the wp-cli
-binary's path under WP-CLI.
+binary's directory under WP-CLI.
 
 Write rules (see also CLAUDE.md, Filesystem writes):
 
@@ -121,14 +122,19 @@ One option, `easy_apple_icon_state`, autoload **off** (only the probe path and t
 read it):
 
 ```
+generation: int
 files:      { "<filename>": { sha256, size, bytes, source_path, source_mtime, written_at } }
 last_error: { message, at } | null
 notices:    { foreign: [filenames], unwritable: bool }
 ```
 
 `size` is the icon's width in pixels (e.g. `180`). `bytes` is the length of the file.
-`source_path` is relative to `ABSPATH` when the source lies under it, so a chrooted PHP-FPM and
-WP-CLI outside the chroot record the same value.
+`source_path` is relative to the site root, or failing that `ABSPATH`, when the source lies under
+it, so a chrooted PHP-FPM and WP-CLI outside the chroot record the same value.
+
+`generation` goes up each time the plugin's files are deleted. A probe reads it before reading the
+source, and doesn't write if it has changed by the time the lock is held, so a probe that was
+rendering the old Site Icon when it changed can't write the old icon back.
 
 The row is read and written with direct queries, not the Options API, under an exclusive
 `flock()` on the plugin file. Apple clients probe several names at once, and an object cache

@@ -44,8 +44,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		private const FILE_MODE             = 0644;
 
 		private const PATH_PREFIX       = '/apple-touch-icon';
-		private const PROBE_PATTERN     = '#^/apple-touch-icon(?:-([0-9]{1,4})x([0-9]{1,4}))?(-precomposed)?\.png$#';
-		private const FILE_NAME_PATTERN = '#^apple-touch-icon(?:-[0-9]{1,4}x[0-9]{1,4})?(?:-precomposed)?\.png$#';
+		private const PROBE_PATTERN     = '#^/apple-touch-icon(?:-([0-9]{1,4})x([0-9]{1,4}))?(-precomposed)?\.png$#D';
+		private const FILE_NAME_PATTERN = '#^apple-touch-icon(?:-[0-9]{1,4}x[0-9]{1,4})?(?:-precomposed)?\.png$#D';
 		private const FILE_NAME_STEM    = 'apple-touch-icon';
 		private const BARE_FILE_NAMES   = [ 'apple-touch-icon.png', 'apple-touch-icon-precomposed.png' ];
 		private const PNG_SIGNATURE     = "\x89PNG\r\n\x1a\n";
@@ -59,6 +59,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		private const WRITE_CURRENT = 'current';
 		private const WRITE_FOREIGN = 'foreign';
 		private const WRITE_FAILED  = 'failed';
+		private const WRITE_STALE   = 'stale';
 
 		/**
 		 * Open handle on this file while the state lock is held, otherwise null.
@@ -119,30 +120,43 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 			$state       = $this->get_state();
 			$site_root   = $this->get_site_root();
 			$failed      = [];
-			$is_writable = wp_is_writable( $site_root );
+			$is_writable = '' !== $site_root && wp_is_writable( $site_root );
 
-			foreach ( array_keys( $state['files'] ) as $file_name ) {
-				$status = $this->get_file_status( $file_name, $state );
+			// A probe still rendering from the old source sees the new generation and doesn't write.
+			++$state['generation'];
 
-				if ( self::STATUS_MISSING === $status ) {
-					unset( $state['files'][ $file_name ] );
-				} elseif ( self::STATUS_FOREIGN === $status ) {
-					unset( $state['files'][ $file_name ] );
-					$state = $this->add_foreign_notice( $state, $file_name );
-				} elseif ( ! $is_writable ) {
-					$failed[] = $file_name;
-				} elseif ( ! unlink( $site_root . $file_name ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- the return value is needed, wp_delete_file() hides it
-					$failed[] = $file_name;
-				} else {
-					unset( $state['files'][ $file_name ] );
-					$this->log( 'deleted ' . $site_root . $file_name );
+			if ( '' === $site_root ) {
+				$failed = array_keys( $state['files'] );
+			} else {
+				foreach ( array_keys( $state['files'] ) as $file_name ) {
+					$status = $this->get_file_status( $file_name, $state );
+
+					if ( self::STATUS_MISSING === $status ) {
+						unset( $state['files'][ $file_name ] );
+					} elseif ( self::STATUS_FOREIGN === $status ) {
+						unset( $state['files'][ $file_name ] );
+						$state = $this->add_foreign_notice( $state, $file_name );
+					} elseif ( ! $is_writable ) {
+						$failed[] = $file_name;
+					} elseif ( ! unlink( $site_root . $file_name ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- the return value is needed, wp_delete_file() hides it
+						$failed[] = $file_name;
+					} else {
+						unset( $state['files'][ $file_name ] );
+						$this->log( 'deleted ' . $site_root . $file_name );
+					}
 				}
 			}
 
 			$this->save_state( $state );
 
-			if ( [] !== $failed ) {
+			if ( [] === $failed ) {
+				// Every recorded file is gone.
+			} elseif ( '' === $site_root ) {
+				$this->log_error( 'could not delete ' . implode( ', ', $failed ) . ': the site root could not be determined' );
+			} elseif ( ! $is_writable ) {
 				$this->log_error( sprintf( 'could not delete %s from %s, which is not writable by %s; the files are stale until they are removed', implode( ', ', $failed ), $site_root, $this->describe_user( $this->get_current_user_id() ) ) );
+			} else {
+				$this->log_error( sprintf( 'could not delete %s from %s; the files are stale until they are removed', implode( ', ', $failed ), $site_root ) );
 			}
 
 			$this->unlock_state();
@@ -154,14 +168,34 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		 * Deletes the plugin's files, and its state once they are all gone.
 		 */
 		public function deactivate(): void {
-			if ( $this->delete_owned_files() ) {
-				delete_option( self::OPTION_STATE );
-			} elseif ( defined( 'WP_CLI' ) && WP_CLI ) {
+			if ( $this->delete_files_and_state() ) {
+				// Nothing is left behind.
+			} elseif ( defined( 'WP_CLI' ) && WP_CLI && '' !== $this->get_site_root() ) {
 				// Deactivation can't be refused, so say how to finish the clean-up.
 				\WP_CLI::warning( 'The plugin\'s icon files were left in place: ' . $this->get_wrong_user_message( $this->get_site_root(), 'remove' ) . PHP_EOL . 'Reactivate the plugin to run that command, then deactivate it again.' );
 			} else {
 				// The failure is logged and recorded; the next activation sees the stale files in status.
 			}
+		}
+
+		/**
+		 * Deletes the plugin's files and then, under the same lock, its state; returns false if any file remains.
+		 */
+		private function delete_files_and_state(): bool {
+			global $wpdb;
+
+			$this->lock_state();
+
+			$is_deleted = $this->delete_owned_files();
+
+			if ( $is_deleted ) {
+				$wpdb->delete( $wpdb->options, [ 'option_name' => self::OPTION_STATE ] ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- see get_state()
+				wp_cache_delete( self::OPTION_STATE, 'options' );
+			}
+
+			$this->unlock_state();
+
+			return $is_deleted;
 		}
 
 		/**
@@ -174,7 +208,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 			$file_rows = [];
 
 			\WP_CLI::log( 'Source:       ' . $this->describe_source( $source ) );
-			\WP_CLI::log( 'Site root:    ' . $site_root . ( wp_is_writable( $site_root ) ? '' : ' (not writable by ' . $this->describe_user( $this->get_current_user_id() ) . ')' ) );
+			\WP_CLI::log( 'Site root:    ' . ( '' === $site_root ? 'unknown: the siteurl path does not match the directory WordPress is in' : $site_root . ( wp_is_writable( $site_root ) ? '' : ' (not writable by ' . $this->describe_user( $this->get_current_user_id() ) . ')' ) ) );
 			\WP_CLI::log( 'Static files: ' . $this->describe_static_mode() );
 
 			$file_names = array_unique( array_merge( self::BARE_FILE_NAMES, array_keys( $state['files'] ) ) );
@@ -212,7 +246,9 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 			} elseif ( is_multisite() ) {
 				\WP_CLI::error( 'Static files are not written on multisite: every site shares one site root. Icons are served dynamically.' );
 			} elseif ( $this->home_has_path() ) {
-				\WP_CLI::error( 'The home URL has a path (' . home_url( '/' ) . '). Apple devices request icons from the domain root, which this WordPress does not serve.' );
+				\WP_CLI::error( 'The home URL has a path (' . get_option( 'home' ) . '). Apple devices request icons from the domain root, which this WordPress does not serve.' );
+			} elseif ( '' === $site_root ) {
+				\WP_CLI::error( 'Could not determine the site root: the siteurl path does not match the directory WordPress is in. Static files are not written.' );
 			} elseif ( ! wp_is_writable( $site_root ) ) {
 				\WP_CLI::error( $this->get_wrong_user_message( $site_root, 'regenerate' ) . PHP_EOL . 'Nothing was changed.' );
 			} elseif ( ! $this->delete_owned_files() ) {
@@ -220,7 +256,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 			} elseif ( '' === $source ) {
 				\WP_CLI::error( 'No Site Icon is set, so there is nothing to write. Any files the plugin wrote have been removed.' );
 			} else {
-				$this->write_bare_files( $source );
+				$this->write_bare_files();
 			}
 		}
 
@@ -230,12 +266,13 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		public function cli_remove(): void {
 			$site_root = $this->get_site_root();
 
-			if ( ! wp_is_writable( $site_root ) ) {
+			if ( '' === $site_root ) {
+				\WP_CLI::error( 'Could not determine the site root: the siteurl path does not match the directory WordPress is in.' );
+			} elseif ( ! wp_is_writable( $site_root ) ) {
 				\WP_CLI::error( $this->get_wrong_user_message( $site_root, 'remove' ) . PHP_EOL . 'Nothing was changed.' );
-			} elseif ( ! $this->delete_owned_files() ) {
+			} elseif ( ! $this->delete_files_and_state() ) {
 				\WP_CLI::error( 'Could not delete every icon file. See the last error in "wp ' . self::CLI_COMMAND . ' status".' );
 			} else {
-				delete_option( self::OPTION_STATE );
 				\WP_CLI::success( 'Removed the plugin\'s icon files and cleared its state.' );
 			}
 		}
@@ -251,24 +288,24 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 
 		/**
 		 * Writes both bare icon names for WP-CLI and reports the outcome.
-		 *
-		 * @param string $source Source image path.
 		 */
-		private function write_bare_files( string $source ): void {
-			$png      = $this->render_png( $source, self::BARE_SIZE );
-			$written  = [];
-			$foreign  = [];
-			$failures = [];
+		private function write_bare_files(): void {
+			$generation = $this->get_state()['generation'];
+			$source     = $this->get_source_file();
+			$png        = '' === $source ? '' : $this->render_png( $source, self::BARE_SIZE );
+			$written    = [];
+			$foreign    = [];
+			$failures   = [];
 
 			if ( '' === $png ) {
 				\WP_CLI::error( 'Could not convert the source image to PNG. See the last error in "wp ' . self::CLI_COMMAND . ' status".' );
 			} else {
 				foreach ( self::BARE_FILE_NAMES as $file_name ) {
-					$outcome = $this->write_icon_file( $file_name, self::BARE_SIZE, $png, $source );
+					$outcome = $this->write_icon_file( $file_name, self::BARE_SIZE, $png, $source, $generation );
 
 					if ( self::WRITE_FOREIGN === $outcome ) {
 						$foreign[] = $file_name;
-					} elseif ( self::WRITE_FAILED === $outcome ) {
+					} elseif ( self::WRITE_FAILED === $outcome || self::WRITE_STALE === $outcome ) {
 						$failures[] = $file_name;
 					} else {
 						$written[] = $file_name;
@@ -393,6 +430,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 				$description = 'not used on multisite';
 			} elseif ( $this->home_has_path() ) {
 				$description = 'not used: the home URL has a path, so probes are not handled';
+			} elseif ( '' === $this->get_site_root() ) {
+				$description = 'not used: the site root could not be determined';
 			} else {
 				// Static files are written on the first probe for each name.
 			}
@@ -407,8 +446,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		 * @param int    $size Icon width and height in pixels.
 		 */
 		private function serve_icon( string $file_name, int $size ): never {
-			$source = $this->get_source_file();
-			$png    = '';
+			// Read before the source: a Site Icon change after this point bumps the generation.
+			$generation = $this->get_state()['generation'];
+			$source     = $this->get_source_file();
+			$png        = '';
 
 			if ( '' === $source && $this->get_site_icon_id() > 0 ) {
 				$this->log_error( 'the Site Icon (attachment ' . $this->get_site_icon_id() . ') has no readable file' );
@@ -422,7 +463,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 				$this->send_not_found();
 			} else {
 				$this->send_png( $png );
-				$this->maybe_write_static( $file_name, $size, $png, $source );
+				$this->maybe_write_static( $file_name, $size, $png, $source, $generation );
 			}
 
 			exit;
@@ -435,19 +476,22 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		 * @param int    $size Icon width and height in pixels.
 		 * @param string $png PNG bytes.
 		 * @param string $source Source image path.
+		 * @param int    $generation State generation read before the source.
 		 */
-		private function maybe_write_static( string $file_name, int $size, string $png, string $source ): void {
+		private function maybe_write_static( string $file_name, int $size, string $png, string $source, int $generation ): void {
 			$site_root = $this->get_site_root();
 
 			if ( ! $this->is_static_enabled() ) {
 				// Static files are switched off; serving dynamically is enough.
 			} elseif ( is_multisite() ) {
 				// Sites share one docroot, so a file written here would serve every site's icon.
+			} elseif ( '' === $site_root ) {
+				$this->log_error( 'could not determine the site root: the siteurl path does not match the directory WordPress is in; icons are served dynamically' );
 			} elseif ( ! wp_is_writable( $site_root ) ) {
 				$this->record_unwritable( $site_root );
 			} else {
 				$this->finish_response();
-				$this->write_icon_file( $file_name, $size, $png, $source );
+				$this->write_icon_file( $file_name, $size, $png, $source, $generation );
 			}
 		}
 
@@ -458,8 +502,9 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		 * @param int    $size Icon width and height in pixels.
 		 * @param string $png PNG bytes.
 		 * @param string $source Source image path.
+		 * @param int    $generation State generation read before the source.
 		 */
-		private function write_icon_file( string $file_name, int $size, string $png, string $source ): string {
+		private function write_icon_file( string $file_name, int $size, string $png, string $source, int $generation ): string {
 			$this->lock_state();
 
 			$state     = $this->get_state();
@@ -470,7 +515,10 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 			$temp_path = $site_root . '.' . $file_name . '.' . wp_generate_password( 12, false ) . '.tmp';
 			$outcome   = self::WRITE_FAILED;
 
-			if ( self::STATUS_FOREIGN === $status ) {
+			if ( $state['generation'] !== $generation ) {
+				// The files were reset while this PNG was made from the previous source.
+				$outcome = self::WRITE_STALE;
+			} elseif ( self::STATUS_FOREIGN === $status ) {
 				$this->save_state( $this->add_foreign_notice( $state, $file_name ) );
 				$outcome = self::WRITE_FOREIGN;
 			} elseif ( self::STATUS_OURS === $status && $state['files'][ $file_name ]['sha256'] === $sha256 ) {
@@ -478,13 +526,13 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 				$outcome = self::WRITE_CURRENT;
 			} elseif ( strlen( $png ) !== file_put_contents( $temp_path, $png ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- WP_Filesystem may prompt for credentials (see CLAUDE.md)
 				$this->delete_temp_file( $temp_path );
-				$this->log_error( 'could not write ' . $temp_path );
+				$this->log_error( 'could not write a temporary file for ' . $target );
 			} elseif ( ! chmod( $temp_path, self::FILE_MODE ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- see file_put_contents above
 				$this->delete_temp_file( $temp_path );
-				$this->log_error( 'could not set the mode of ' . $temp_path );
-			} elseif ( ! rename( $temp_path, $target ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- see file_put_contents above
+				$this->log_error( 'could not set the mode of the temporary file for ' . $target );
+			} elseif ( ! $this->move_into_place( $temp_path, $target, self::STATUS_MISSING === $status ) ) {
 				$this->delete_temp_file( $temp_path );
-				$this->log_error( 'could not rename ' . $temp_path . ' to ' . $target );
+				$this->log_error( 'could not move the temporary file into place as ' . $target );
 			} else {
 				$state['files'][ $file_name ] = [
 					'sha256'       => $sha256,
@@ -506,6 +554,31 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 			$this->unlock_state();
 
 			return $outcome;
+		}
+
+		/**
+		 * Moves the temporary file to the target; a new target is hard-linked, so a file created meanwhile is never replaced.
+		 *
+		 * @param string $temp_path Temporary file path.
+		 * @param string $target Final path in the site root.
+		 * @param bool   $is_new Whether the target was missing when checked.
+		 */
+		private function move_into_place( string $temp_path, string $target, bool $is_new ): bool {
+			$is_moved = false;
+
+			if ( ! $is_new ) {
+				$is_moved = rename( $temp_path, $target ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- WP_Filesystem may prompt for credentials (see CLAUDE.md)
+			} elseif ( link( $temp_path, $target ) ) {
+				$is_moved = true;
+				$this->delete_temp_file( $temp_path );
+			} elseif ( file_exists( $target ) || is_link( $target ) ) {
+				// Another process created the target after the check; it isn't ours to replace.
+			} else {
+				// The filesystem doesn't support hard links.
+				$is_moved = rename( $temp_path, $target ); // phpcs:ignore WordPress.WP.AlternativeFunctions.rename_rename -- see above
+			}
+
+			return $is_moved;
 		}
 
 		/**
@@ -564,11 +637,15 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		 * @param array  $state Normalised state.
 		 */
 		private function get_file_status( string $file_name, array $state ): string {
-			$path   = $this->get_site_root() . $file_name;
-			$record = $state['files'][ $file_name ] ?? null;
-			$status = self::STATUS_FOREIGN;
+			$site_root = $this->get_site_root();
+			$path      = $site_root . $file_name;
+			$record    = $state['files'][ $file_name ] ?? null;
+			$status    = self::STATUS_FOREIGN;
 
-			if ( is_link( $path ) ) {
+			if ( '' === $site_root ) {
+				// Without a site root there is no file to look at; writers and deleters check first.
+				$status = self::STATUS_MISSING;
+			} elseif ( is_link( $path ) ) {
 				// A symlink is never ours, whatever it points at.
 			} elseif ( ! file_exists( $path ) ) {
 				$status = self::STATUS_MISSING;
@@ -848,15 +925,25 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		}
 
 		/**
-		 * Returns a path relative to ABSPATH when it lies under it, so PHP-FPM in a chroot and WP-CLI outside it agree.
+		 * Returns a path relative to the site root, or ABSPATH, when it lies under one, so PHP-FPM in a chroot and WP-CLI outside it agree.
 		 *
 		 * @param string $path Absolute path.
 		 */
 		private function get_portable_path( string $path ): string {
 			$normalised_path = wp_normalize_path( $path );
-			$site_path       = trailingslashit( wp_normalize_path( ABSPATH ) );
+			$site_root       = $this->get_site_root();
+			$wordpress_path  = trailingslashit( wp_normalize_path( ABSPATH ) );
+			$portable_path   = $normalised_path;
 
-			return str_starts_with( $normalised_path, $site_path ) ? substr( $normalised_path, strlen( $site_path ) ) : $normalised_path;
+			if ( '' !== $site_root && str_starts_with( $normalised_path, $site_root ) ) {
+				$portable_path = substr( $normalised_path, strlen( $site_root ) );
+			} elseif ( str_starts_with( $normalised_path, $wordpress_path ) ) {
+				$portable_path = substr( $normalised_path, strlen( $wordpress_path ) );
+			} else {
+				// Outside both; only the absolute path is available.
+			}
+
+			return $portable_path;
 		}
 
 		/**
@@ -877,7 +964,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		 * Returns whether the home URL has a path component, such as /blog.
 		 */
 		private function home_has_path(): bool {
-			$home_path = wp_parse_url( home_url(), PHP_URL_PATH );
+			// The option, not home_url(): multilingual plugins filter home_url() with a language path.
+			$home_path = wp_parse_url( (string) get_option( 'home' ), PHP_URL_PATH );
 
 			return is_string( $home_path ) && '' !== trim( $home_path, '/' );
 		}
@@ -890,21 +978,11 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		}
 
 		/**
-		 * Returns the site root (the directory serving the home URL), with a trailing slash.
+		 * Returns the site root (the directory serving the home URL) with a trailing slash, or '' when it can't be derived.
 		 */
 		private function get_site_root(): string {
-			$site_root = $this->derive_site_root( ABSPATH, (string) get_option( 'home' ), (string) get_option( 'siteurl' ) );
-
-			// get_home_path() reads SCRIPT_FILENAME, which is only right in wp-admin; it is the fallback, not the default.
-			if ( '' === $site_root ) {
-				if ( ! function_exists( 'get_home_path' ) ) {
-					require_once ABSPATH . 'wp-admin/includes/file.php';
-				}
-
-				$site_root = trailingslashit( wp_normalize_path( get_home_path() ) );
-			}
-
-			return $site_root;
+			// Not get_home_path(): it reads SCRIPT_FILENAME, which is only right in wp-admin (see docs/spec.md, R4).
+			return $this->derive_site_root( ABSPATH, (string) get_option( 'home' ), (string) get_option( 'siteurl' ) );
 		}
 
 		/**
@@ -972,6 +1050,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 			}
 
 			return [
+				'generation' => (int) ( $stored['generation'] ?? 0 ),
 				'files'      => $files,
 				'last_error' => $last_error,
 				'notices'    => [

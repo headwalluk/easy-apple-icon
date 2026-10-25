@@ -185,7 +185,8 @@ filtered file changes, but `status` reports the icon files as `ours (stale)` whe
 - **Home URL with a path** (`https://example.com/blog/`): the plugin does nothing. Apple devices
   ask at the domain root, which this WordPress doesn't serve. A WordPress whose *files* are in a
   subdirectory but whose home URL is the domain root ("WordPress in its own directory") works
-  normally
+  normally, as long as the folder name matches the address (files in `/wp/`, Site Address
+  ending `/wp`). If it doesn't, icons are served but no files are saved, and `status` says why
 - **Site Icon changed directly in the database:** the plugin learns about Site Icon changes from
   WordPress, so a change made with SQL isn't noticed, and the old icon files stay until you run
   `wp easy-apple-icon regenerate`
