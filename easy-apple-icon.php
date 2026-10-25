@@ -890,14 +890,48 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		}
 
 		/**
-		 * Returns the site root, with a trailing slash.
+		 * Returns the site root (the directory serving the home URL), with a trailing slash.
 		 */
 		private function get_site_root(): string {
-			if ( ! function_exists( 'get_home_path' ) ) {
-				require_once ABSPATH . 'wp-admin/includes/file.php';
+			$site_root = $this->derive_site_root( ABSPATH, (string) get_option( 'home' ), (string) get_option( 'siteurl' ) );
+
+			// get_home_path() reads SCRIPT_FILENAME, which is only right in wp-admin; it is the fallback, not the default.
+			if ( '' === $site_root ) {
+				if ( ! function_exists( 'get_home_path' ) ) {
+					require_once ABSPATH . 'wp-admin/includes/file.php';
+				}
+
+				$site_root = trailingslashit( wp_normalize_path( get_home_path() ) );
 			}
 
-			return trailingslashit( wp_normalize_path( get_home_path() ) );
+			return $site_root;
+		}
+
+		/**
+		 * Strips the WordPress directory (siteurl less home) from ABSPATH; returns '' when the layout doesn't match.
+		 *
+		 * @param string $abspath  ABSPATH.
+		 * @param string $home_url The home option.
+		 * @param string $site_url The siteurl option.
+		 */
+		private function derive_site_root( string $abspath, string $home_url, string $site_url ): string {
+			$home_url      = untrailingslashit( set_url_scheme( $home_url, 'http' ) );
+			$site_url      = untrailingslashit( set_url_scheme( $site_url, 'http' ) );
+			$abspath       = trailingslashit( wp_normalize_path( $abspath ) );
+			$wordpress_dir = 0 === stripos( $site_url, $home_url ) ? trim( substr( $site_url, strlen( $home_url ) ), '/' ) : '';
+			$site_root     = '';
+
+			if ( '' === $home_url || 0 === strcasecmp( $home_url, $site_url ) ) {
+				$site_root = $abspath;
+			} elseif ( '' === $wordpress_dir ) {
+				// siteurl isn't under home, so the directory can't be derived.
+			} elseif ( ! str_ends_with( strtolower( $abspath ), '/' . strtolower( $wordpress_dir ) . '/' ) ) {
+				// The URL path doesn't match the directory layout (an alias or symlink).
+			} else {
+				$site_root = substr( $abspath, 0, -strlen( $wordpress_dir . '/' ) );
+			}
+
+			return $site_root;
 		}
 
 		/**

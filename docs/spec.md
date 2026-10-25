@@ -71,9 +71,14 @@ registered its hooks, before canonical redirects and template loading):
 
 ### R4. Static files (written lazily)
 
-After R2 has served a request successfully, write the PNG to `get_home_path()` plus the filename,
-so the web server serves it from then on. `get_home_path()` handles "WordPress in its own
-directory" installs; load `wp-admin/includes/file.php` first if it isn't loaded.
+After R2 has served a request successfully, write the PNG to the site root (the directory that
+serves the home URL) plus the filename, so the web server serves it from then on.
+
+The site root is `ABSPATH` when `home` equals `siteurl`. For "WordPress in its own directory"
+installs, it is `ABSPATH` with the WordPress directory (`siteurl` less `home`) stripped from the
+end. Core's `get_home_path()` is only the fallback, for layouts where that doesn't match: it reads
+`SCRIPT_FILENAME`, which is right in wp-admin but gives `/` on a front-end request and the wp-cli
+binary's path under WP-CLI.
 
 Write rules (see also CLAUDE.md, Filesystem writes):
 
