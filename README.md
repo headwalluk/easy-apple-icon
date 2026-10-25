@@ -29,8 +29,7 @@ The plugin is one file, `easy-apple-icon.php`. Put it in **one** of these places
 same from each.
 
 **As a normal plugin.** Create the folder `wp-content/plugins/easy-apple-icon/`, put the file in
-it, then activate **Easy Apple Icon** under **Plugins**. Deactivating it later deletes the icon
-files it made.
+it, then activate **Easy Apple Icon** under **Plugins**.
 
 **As a must-use plugin.** Put the file straight into `wp-content/mu-plugins/` (create the folder
 if it isn't there). Must-use plugins are always on and can't be deactivated from the dashboard,
@@ -47,27 +46,118 @@ require_once __DIR__ . '/easy-apple-icon.php';
 It's safe to have more than one copy installed, for example a must-use copy and a theme copy. The
 first one WordPress loads does the work, and the others do nothing.
 
-To uninstall a must-use or theme copy, first run `wp easy-apple-icon remove` (see below) so the
-icon files it made are deleted, then delete the file.
-
 ### Checking it works
 
-Visit `https://your-site.example/apple-touch-icon.png`. You should see your Site Icon. Then look
-in your site's root directory: there should now be a file called `apple-touch-icon.png`.
+Visit `https://your-site.example/apple-touch-icon.png`. You should see your Site Icon.
 
-With WP-CLI, `wp easy-apple-icon status` shows which source image is being used, each icon file
-and whether the plugin made it, and the last error, if there was one.
+Then look in your site's root directory, the folder that holds `wp-config.php`, using FileZilla
+or your hosting control panel's file manager. There should now be a file called
+`apple-touch-icon.png`. More files appear over the following days, one for each icon size Apple
+devices ask for.
+
+## Removing it
+
+The plugin saves its icons as ordinary files in your site's root directory. How you remove them
+depends on how you installed it.
+
+**A normal plugin:** deactivate it under **Plugins**. It deletes its icon files for you. Then
+delete the plugin as usual.
+
+**A must-use plugin or a theme copy:** these can't clean up after themselves, so it takes two
+steps.
+
+1. Remove the code. For a must-use plugin, delete `wp-content/mu-plugins/easy-apple-icon.php`.
+   For a theme copy, **first** delete the `require_once` line from `functions.php`, **then**
+   delete `easy-apple-icon.php`. In the other order, your site shows an error until the line is
+   gone
+2. Delete the icon files. Connect with FileZilla (or open your hosting control panel's file
+   manager), go to the folder that holds `wp-config.php`, and delete every file whose name starts
+   with `apple-touch-icon` and ends with `.png`:
+
+   ```
+   apple-touch-icon.png
+   apple-touch-icon-precomposed.png
+   apple-touch-icon-120x120.png
+   apple-touch-icon-152x152.png
+   ...
+   ```
+
+   If you had your own `apple-touch-icon.png` before you installed the plugin, keep that one. The
+   plugin never changes or deletes a file it didn't make
+
+If you skip step 2, nothing breaks. Apple devices go on getting the saved icons, but they no
+longer change when you change your Site Icon.
+
+### Switching it off without removing it
+
+A theme or plugin can switch Easy Apple Icon off with one line of PHP:
+
+```php
+add_filter( 'easy_apple_icon_enabled', '__return_false' );
+```
+
+This is useful when the plugin is bundled in a must-use plugin that you can't edit. Once it's off,
+the plugin no longer answers icon requests or saves new files. Icon files it has already saved
+are still sent by the web server, so delete them as in step 2 above.
+
+## Changing your Site Icon
+
+Nothing to do. When you change or remove the Site Icon, the plugin deletes the icon files it
+saved, and makes new ones from the new icon as Apple devices ask for them.
+
+Apple devices and browsers keep a copy of the icon for a while, so the old one can take a few
+days to disappear from a home screen that already had it.
+
+## Configuration
+
+None is needed. For developers, there is one constant and four filters.
+
+| Name | Type | Default | What it does |
+|------|------|---------|--------------|
+| `easy_apple_icon_enabled` | filter | `true` | Return `false` to switch the plugin off (see above) |
+| `EASY_APPLE_ICON_STATIC_FILES` | constant | `true` | Set to `false` to stop the plugin saving icon files. Every request is then answered by PHP |
+| `easy_apple_icon_source_file` | filter | the Site Icon's file | Use a different image, such as an icon your theme ships |
+| `easy_apple_icon_sizes` | filter | `57, 60, 72, 76, 114, 120, 144, 152, 167, 180` | The sizes answered at `-NNxNN` addresses |
+| `easy_apple_icon_cache_max_age` | filter | `604800` (a week) | How long browsers may cache an icon answered by PHP, in seconds. Saved files are sent by the web server, with whatever caching headers it is set up to add |
+
+Turn off static files in `wp-config.php`:
+
+```php
+define( 'EASY_APPLE_ICON_STATIC_FILES', false );
+```
+
+Use an icon from your theme instead of the Site Icon. The source can be a JPEG, PNG or WebP of
+any size; it's cropped to a square from the centre and resized:
+
+```php
+add_filter( 'easy_apple_icon_source_file', 'my_theme_apple_icon_source' );
+
+function my_theme_apple_icon_source( string $path ): string {
+	return get_stylesheet_directory() . '/images/apple-icon.png';
+}
+```
+
+The filter's second argument is the Site Icon's attachment ID (`0` when none is set). If a filter
+returns something unusable (a file that doesn't exist, a size outside 16 to 1024, a negative
+max-age), the plugin uses its default instead.
+
+The plugin can't see when a filtered source file changes. After changing it, delete the saved
+icon files (step 2 of [Removing it](#removing-it)) or run `wp easy-apple-icon regenerate`.
+
+## For hosting providers: WP-CLI
+
+Nobody needs WP-CLI to use this plugin. For those who manage sites from the command line, there
+are three commands.
 
 | Command | What it does |
 |---------|--------------|
-| `wp easy-apple-icon status` | Shows the source image, each icon file (`ours`, `ours (stale)`, `foreign` or `missing`) and the last error |
+| `wp easy-apple-icon status` | Shows whether the plugin is on, the source image, each icon file (`ours`, `ours (stale)`, `foreign` or `missing`) and the last error |
 | `wp easy-apple-icon regenerate` | Deletes the icon files the plugin made, then makes `apple-touch-icon.png` and `apple-touch-icon-precomposed.png` straight away |
-| `wp easy-apple-icon remove` | Deletes the icon files the plugin made and forgets everything it recorded |
+| `wp easy-apple-icon remove` | Deletes the icon files the plugin made and forgets everything it recorded. Run it before deleting a must-use or theme copy, in place of step 2 of [Removing it](#removing-it) |
 
-The plugin never touches an icon file it didn't make. If you already had your own
-`apple-touch-icon.png`, it's left alone and `status` lists it as `foreign`.
+`status` lists a file as `foreign` when the plugin didn't make it. Those are never touched.
 
-## Running WP-CLI commands: use the right user
+### Running WP-CLI commands: use the right user
 
 The plugin writes small PNG files into your site's root directory, the one your home page is
 served from (usually the one containing `wp-config.php`). Normally the website itself does this the first time an Apple device asks for
@@ -77,7 +167,7 @@ The WP-CLI commands (`wp easy-apple-icon regenerate` and `remove`) write and del
 files. **They only work when you run them as the user that owns your site's files.** On many
 servers, that user isn't the one you log in as.
 
-### How to tell
+#### How to tell
 
 Look at who owns `wp-config.php`:
 
@@ -97,7 +187,7 @@ hosting and most control panels.
 If it's someone else (`www-data`, `apache`, `nginx`, or a per-site user like `www-example`), run
 `wp` as that user.
 
-### Running as the site's user
+#### Running as the site's user
 
 Either run a single command as that user:
 
@@ -117,7 +207,7 @@ Both need `sudo` rights on the server. If you don't have them, ask your host to 
 or skip it: the plugin creates the files itself the first time an Apple device visits, so
 `regenerate` is only ever a head start.
 
-### What goes wrong if you don't
+#### What goes wrong if you don't
 
 - **As your own user:** the command can't write to the site root and stops with an error that
   names the directory, the user you ran as, and the user that owns it, and gives the command to
@@ -143,41 +233,6 @@ or skip it: the plugin creates the files itself the first time an Apple device v
   rights, and any files created can end up owned by root, which the website may not be able to
   manage later
 
-## Configuration
-
-None is needed. For developers, there is one constant and three filters.
-
-| Name | Type | Default | What it does |
-|------|------|---------|--------------|
-| `EASY_APPLE_ICON_STATIC_FILES` | constant | `true` | Set to `false` to stop the plugin saving icon files. Every request is then answered by PHP |
-| `easy_apple_icon_source_file` | filter | the Site Icon's file | Use a different image, such as an icon your theme ships |
-| `easy_apple_icon_sizes` | filter | `57, 60, 72, 76, 114, 120, 144, 152, 167, 180` | The sizes answered at `-NNxNN` addresses |
-| `easy_apple_icon_cache_max_age` | filter | `604800` (a week) | How long browsers may cache an icon, in seconds |
-
-Turn off static files in `wp-config.php`:
-
-```php
-define( 'EASY_APPLE_ICON_STATIC_FILES', false );
-```
-
-Use an icon from your theme instead of the Site Icon. The source can be a JPEG, PNG or WebP of
-any size; it's cropped to a square from the centre and resized:
-
-```php
-add_filter( 'easy_apple_icon_source_file', 'my_theme_apple_icon_source' );
-
-function my_theme_apple_icon_source( string $path ): string {
-	return get_stylesheet_directory() . '/images/apple-icon.png';
-}
-```
-
-The filter's second argument is the Site Icon's attachment ID (`0` when none is set). If a filter
-returns something unusable (a file that doesn't exist, a size outside 16 to 1024, a negative
-max-age), the plugin uses its default instead.
-
-After changing the source filter, run `wp easy-apple-icon regenerate`. The plugin can't see when a
-filtered file changes, but `status` reports the icon files as `ours (stale)` when it has.
-
 ## Limitations
 
 - **Multisite:** icons are served, but no files are saved, because every site in the network
@@ -186,10 +241,10 @@ filtered file changes, but `status` reports the icon files as `ours (stale)` whe
   ask at the domain root, which this WordPress doesn't serve. A WordPress whose *files* are in a
   subdirectory but whose home URL is the domain root ("WordPress in its own directory") works
   normally, as long as the folder name matches the address (files in `/wp/`, Site Address
-  ending `/wp`). If it doesn't, icons are served but no files are saved, and `status` says why
+  ending `/wp`). If it doesn't, icons are served but no files are saved
 - **Site Icon changed directly in the database:** the plugin learns about Site Icon changes from
-  WordPress, so a change made with SQL isn't noticed, and the old icon files stay until you run
-  `wp easy-apple-icon regenerate`
+  WordPress, so a change made with SQL isn't noticed, and the old icon files stay until you delete
+  them (step 2 of [Removing it](#removing-it))
 - **No Site Icon:** the plugin answers with an empty "not found" (no theme page) rather than
   falling back to the WordPress logo, which would look wrong on a home screen
 - **Transparent icons** show black corners on iOS home screens. Use a Site Icon with a solid
