@@ -10,8 +10,8 @@ site's own Site Icon as a PNG. Without it, each probe renders the theme's full 4
 the first request for a given filename, the plugin writes that PNG into the site root so the web
 server serves it statically, with no PHP.
 
-**`docs/spec.md` is the requirements specification.** Read it before writing code. Where this
-file and the spec disagree, stop and ask.
+**`dev-notes/spec.md` is the requirements specification** (private, for now). Read it before
+writing code. Where this file and the spec disagree, stop and ask.
 
 - **Namespace:** `Easy_Apple_Icon`
 - **Constants:** `EASY_APPLE_ICON_*`. **Filters, options, CLI:** `easy_apple_icon_` / `easy-apple-icon`
@@ -45,9 +45,11 @@ It is also bundled inside another must-use plugin, so it must tolerate being **i
 | Path | Purpose |
 |------|---------|
 | `easy-apple-icon.php` | The plugin: header, guard, one class |
-| `docs/spec.md` | Requirements specification (tracked) |
-| `docs/` | Operator and developer docs, one audience per file |
-| `README.md` | GitHub landing page: the problem, install in the three contexts, configuration |
+| `README.md` | GitHub landing page: badges, what it does and who it's for, links into `docs/` |
+| `docs/getting-started.md` | Install (mu-plugin first), check, remove, limitations. For web designers |
+| `docs/hooks-and-filters.md` | The filters and the constant. For developers |
+| `docs/wp-cli.md` | The commands and running them as the right user. For hosting providers |
+| `docs/contributing.md` | Bug reports, scope, PR rules, and "How it works" (design notes code comments point to) |
 | `CHANGELOG.md` | Per-version release notes |
 | `phpcs.xml` | WordPress Coding Standards config |
 | `dev-notes/` | Private, untracked: evidence, measurements, scratch notes |
@@ -116,10 +118,11 @@ No unit-test framework, and none is wanted. Exercise behaviour against a workben
   (chroot), so its paths differ from yours; give the commands in exactly this form:
   `sudo -u www-bench1 wp --path=/web/bench1.local easy-apple-icon <subcommand>`. Test the writable path over HTTP, and list the `sudo -u` commands
   that still need running in your report for the maintainer to run
-- README.md is written for web designers who have never used a command line: everything they
-  need (install, check, remove) works through the dashboard and SFTP/FTP. WP-CLI lives in its own
-  section for hosting providers. Its "Running WP-CLI commands" subsection is for people who don't
-  know Linux file permissions; keep it in step with the wrong-user error message (spec R7)
+- `docs/getting-started.md` is written for web designers who have never used a command line:
+  everything they need (install, check, remove) works through the dashboard and SFTP/FTP. WP-CLI
+  lives in `docs/wp-cli.md` for hosting providers. Its "Running WP-CLI commands" section is for
+  people who don't know Linux file permissions; keep it in step with the wrong-user error message
+  (spec R7)
 
 ```bash
 SITE_PATH=/var/www/bench1.local/web
@@ -129,7 +132,7 @@ wp --path="${SITE_PATH}" option get easy_apple_icon_state --format=json
 ```
 
 Two rules: reset the state you touch afterwards (delete the files and the state option, restore
-the original Site Icon), and test the **failure** paths as well as the happy one. `docs/spec.md`
+the original Site Icon), and test the **failure** paths as well as the happy one. `dev-notes/spec.md`
 lists the acceptance tests; all of them must pass before a release.
 
 Identifying a static response: anything WordPress serves carries headers the web server never
@@ -192,7 +195,7 @@ return $is_written;
 This plugin writes into the site root, which no other plugin should be trusted to do carelessly.
 These rules are not negotiable:
 
-- Only filenames that match the allow-list in `docs/spec.md` R1, rebuilt from the parsed size,
+- Only filenames that match the allow-list in spec R1, rebuilt from the parsed size,
   never copied from the request
 - Write to a temporary file in the same directory, then `rename()`. Mode `0644`
 - **Never overwrite or delete a file the plugin didn't write.** Ownership is the sha256 recorded
@@ -263,5 +266,5 @@ Never push without being asked.
 1. Bump the version in **both** the header `Version:` field and `Plugin::VERSION`. They must match
    the git tag
 2. Move `CHANGELOG.md` `[Unreleased]` entries under the new version
-3. `phpcs` clean, every acceptance test in `docs/spec.md` passing
+3. `phpcs` clean, every acceptance test in `dev-notes/spec.md` passing
 4. Tag the release

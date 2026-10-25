@@ -996,7 +996,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		 * Returns the site root (the directory serving the home URL) with a trailing slash, or '' when it can't be derived.
 		 */
 		private function get_site_root(): string {
-			// Not get_home_path(): it reads SCRIPT_FILENAME, which is only right in wp-admin (see docs/spec.md, R4).
+			// Not get_home_path(): it reads SCRIPT_FILENAME, which is only right in wp-admin (see docs/contributing.md, How it works).
 			return $this->derive_site_root( ABSPATH, (string) get_option( 'home' ), (string) get_option( 'siteurl' ) );
 		}
 
