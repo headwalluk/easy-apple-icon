@@ -28,8 +28,13 @@ host installs. Once it's off, the plugin no longer answers icon requests or save
 WordPress handles those requests as if the plugin weren't installed.
 
 Icon files it has already saved are still sent by the web server, because those requests never
-reach WordPress. Delete them as in step 2 of
-[Removing it](getting-started.md#removing-it).
+reach WordPress. From then on they're the site owner's: the plugin no longer deletes them when the
+Site Icon changes, so you can keep them, replace them with your own, or delete them as in step 2
+of [Removing it](getting-started.md#removing-it).
+
+If you switch it back on after changing the Site Icon, the saved files still show the old icon.
+Delete them, or run `wp easy-apple-icon regenerate` ([WP-CLI](wp-cli.md)).
+`wp easy-apple-icon status` lists them as `ours (stale)`.
 
 ## Not saving files
 

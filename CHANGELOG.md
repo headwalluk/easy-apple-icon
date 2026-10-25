@@ -6,6 +6,19 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-25
+
+### Fixed
+
+- When switched off with `easy_apple_icon_enabled`, changing or removing the Site Icon no longer
+  deletes the icon files the plugin saved earlier. Those files are the site owner's from then on.
+  `wp easy-apple-icon remove`, and deactivating a normal plugin, still delete them
+
+### Changed
+
+- The Site Icon hooks now call `handle_site_icon_change()` instead of `delete_owned_files()`.
+  Code that unhooked them with `remove_action()` must use the new method name
+
 ## [1.0.0] - 2026-10-25
 
 First release.
@@ -24,5 +37,6 @@ First release.
 - `EASY_APPLE_ICON_STATIC_FILES` constant, and the `easy_apple_icon_source_file`,
   `easy_apple_icon_sizes` and `easy_apple_icon_cache_max_age` filters
 
-[Unreleased]: https://github.com/headwalluk/easy-apple-icon/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/headwalluk/easy-apple-icon/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/headwalluk/easy-apple-icon/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/headwalluk/easy-apple-icon/releases/tag/v1.0.0

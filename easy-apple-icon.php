@@ -3,7 +3,7 @@
  * Plugin Name:       Easy Apple Icon
  * Plugin URI:        https://headwall-hosting.com/plugins/easy-apple-icon/
  * Description:       Answers Apple touch-icon requests with the Site Icon, and writes them as static files, so they stop rendering the theme's 404 page.
- * Version:           1.0.0
+ * Version:           1.0.1
  * Requires at least: 6.2
  * Requires PHP:      8.2
  * Author:            Paul Faulkner
@@ -26,7 +26,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 	class Plugin {
 
 
-		public const VERSION = '1.0.0';
+		public const VERSION = '1.0.1';
 
 		private const OPTION_STATE          = 'easy_apple_icon_state';
 		private const FILTER_ENABLED        = 'easy_apple_icon_enabled';
@@ -80,9 +80,9 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		 * Registers every hook; runs from the file body in all three load contexts.
 		 */
 		public function run(): void {
-			add_action( 'add_option_site_icon', [ $this, 'delete_owned_files' ], 10, 0 );
-			add_action( 'update_option_site_icon', [ $this, 'delete_owned_files' ], 10, 0 );
-			add_action( 'delete_option_site_icon', [ $this, 'delete_owned_files' ], 10, 0 );
+			add_action( 'add_option_site_icon', [ $this, 'handle_site_icon_change' ], 10, 0 );
+			add_action( 'update_option_site_icon', [ $this, 'handle_site_icon_change' ], 10, 0 );
+			add_action( 'delete_option_site_icon', [ $this, 'handle_site_icon_change' ], 10, 0 );
 
 			if ( $this->is_plugin_context() ) {
 				register_deactivation_hook( __FILE__, [ $this, 'deactivate' ] );
@@ -111,6 +111,17 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 				// The probes go to the domain root, which this WordPress doesn't own.
 			} else {
 				$this->serve_icon( $probe['file_name'], $probe['size'] );
+			}
+		}
+
+		/**
+		 * Deletes the plugin's files when the Site Icon changes, unless the plugin is switched off.
+		 */
+		public function handle_site_icon_change(): void {
+			if ( ! $this->is_enabled() ) {
+				// Switched off: the saved files are the site owner's now.
+			} else {
+				$this->delete_owned_files();
 			}
 		}
 
