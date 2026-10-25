@@ -52,6 +52,7 @@ It is also bundled inside another must-use plugin, so it must tolerate being **i
 | `docs/contributing.md` | Bug reports, scope, PR rules, and "How it works" (design notes code comments point to) |
 | `CHANGELOG.md` | Per-version release notes |
 | `LICENSE` | GPL-2.0 text |
+| `.github/workflows/release.yml` | On a version tag: check versions, build `easy-apple-icon.zip`, publish the release |
 | `phpcs.xml` | WordPress Coding Standards config |
 | `dev-notes/` | Private, untracked: evidence, measurements, scratch notes |
 
@@ -264,7 +265,8 @@ Never push without being asked.
 
 ## Release Workflow
 
-There is no CI: releases are rare, and every step is done by hand.
+Releases are rare. Steps 1 to 5 are done by hand; pushing the tag runs
+`.github/workflows/release.yml`, which does the rest.
 
 1. Bump the version in **both** the header `Version:` field and `Plugin::VERSION`. They must match
    the git tag
@@ -273,4 +275,12 @@ There is no CI: releases are rare, and every step is done by hand.
    `Requires PHP:` / `Requires at least:` do, and must always match them
 3. Move `CHANGELOG.md` `[Unreleased]` entries under the new version
 4. `phpcs` clean, every acceptance test in `dev-notes/spec.md` passing
-5. Tag the release
+5. Tag the release (`vX.Y.Z`) and push the tag
+6. The workflow checks that the header `Version:`, `Plugin::VERSION` and the README version badge
+   all match the tag and that `CHANGELOG.md` has a section for it, and fails, naming every
+   mismatch, if not. It then builds `easy-apple-icon.zip` (an `easy-apple-icon/` folder holding
+   `easy-apple-icon.php` and `LICENSE`, nothing else) and creates the GitHub release from the
+   CHANGELOG section, with the zip attached. The newest tag is marked latest, so
+   `releases/latest/download/easy-apple-icon.zip` (linked from the docs and from
+   headwall-hosting.com) always gets the newest version. For an existing tag, run the workflow by
+   hand with that tag: it adds the zip to the release, creating the release if there isn't one

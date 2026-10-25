@@ -1,0 +1,82 @@
+# Builds easy-apple-icon.zip and publishes it on the GitHub release for each version tag.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build a release for, e.g. v1.1.0'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: Check out the tag
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Check the versions match the tag
+        run: |
+          RELEASE_VERSION="${RELEASE_TAG#v}"
+          HEADER_VERSION=$(sed -n 's/^ \* Version: *//p' easy-apple-icon.php)
+          CLASS_VERSION=$(sed -n "s/.*public const VERSION = '\([^']*\)';.*/\1/p" easy-apple-icon.php)
+          BADGE_VERSION=$(grep -o 'badge/version-[0-9.]*' README.md | sed 's|badge/version-||')
+          PROBLEM_COUNT=0
+          for VERSION_SOURCE in "header Version:=${HEADER_VERSION}" "Plugin::VERSION=${CLASS_VERSION}" "README badge=${BADGE_VERSION}"; do
+            if [ "${VERSION_SOURCE#*=}" != "${RELEASE_VERSION}" ]; then
+              echo "::error::${VERSION_SOURCE%%=*} is '${VERSION_SOURCE#*=}', but the tag is ${RELEASE_TAG}"
+              PROBLEM_COUNT=$((PROBLEM_COUNT + 1))
+            fi
+          done
+          if ! grep -q "^## \[${RELEASE_VERSION}\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [${RELEASE_VERSION}]' section"
+            PROBLEM_COUNT=$((PROBLEM_COUNT + 1))
+          fi
+          if [ "${PROBLEM_COUNT}" -gt 0 ]; then
+            exit 1
+          fi
+
+      - name: Build easy-apple-icon.zip
+        run: |
+          BUILD_DIR="${RUNNER_TEMP}/build"
+          mkdir -p "${BUILD_DIR}/easy-apple-icon"
+          cp easy-apple-icon.php LICENSE "${BUILD_DIR}/easy-apple-icon/"
+          (cd "${BUILD_DIR}" && zip -r -X "${GITHUB_WORKSPACE}/easy-apple-icon.zip" easy-apple-icon)
+          unzip -l easy-apple-icon.zip
+
+      - name: Write the release notes from CHANGELOG.md
+        run: |
+          RELEASE_VERSION="${RELEASE_TAG#v}"
+          awk -v HEADING="## [${RELEASE_VERSION}]" '
+            index($0, HEADING) == 1 { IN_SECTION = 1; next }
+            /^## \[/ || /^\[/ { IN_SECTION = 0 }
+            IN_SECTION
+          ' CHANGELOG.md | sed '/./,$!d' > "${RUNNER_TEMP}/notes.md"
+          printf '\n**Install:** download `easy-apple-icon.zip` below and see [Getting started](https://github.com/%s/blob/%s/docs/getting-started.md).\n' "${GITHUB_REPOSITORY}" "${RELEASE_TAG}" >> "${RUNNER_TEMP}/notes.md"
+          cat "${RUNNER_TEMP}/notes.md"
+
+      - name: Create the release, or add the zip to an existing one
+        run: |
+          NEWEST_TAG=$(git tag --list 'v*' --sort=-v:refname | head -1)
+          IS_LATEST=$([ "${RELEASE_TAG}" = "${NEWEST_TAG}" ] && echo true || echo false)
+          if gh release view "${RELEASE_TAG}" > /dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" easy-apple-icon.zip --clobber
+          else
+            gh release create "${RELEASE_TAG}" easy-apple-icon.zip \
+              --verify-tag \
+              --title "Easy Apple Icon ${RELEASE_TAG#v}" \
+              --notes-file "${RUNNER_TEMP}/notes.md" \
+              --latest="${IS_LATEST}"
+          fi

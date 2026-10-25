@@ -27,13 +27,18 @@ directly and WordPress isn't involved at all.
 
 ## Installing
 
-The plugin is one file, `easy-apple-icon.php`. Put it in **one** of these places. It works the
-same from each.
+Download
+[`easy-apple-icon.zip`](https://github.com/headwalluk/easy-apple-icon/releases/latest/download/easy-apple-icon.zip),
+the latest release. Inside is a folder, `easy-apple-icon`, holding the whole plugin: one file,
+`easy-apple-icon.php`, and its licence.
+
+Install it in **one** of these places. It works the same from each.
 
 ### As a must-use plugin (easiest)
 
-Upload the file into `wp-content/mu-plugins/` with FileZilla or your hosting control panel's file
-manager. If there's no `mu-plugins` folder inside `wp-content`, create it.
+Unzip the download, then upload `easy-apple-icon.php` (the file, not the folder) into
+`wp-content/mu-plugins/` with FileZilla or your hosting control panel's file manager. If there's
+no `mu-plugins` folder inside `wp-content`, create it.
 
 That's all. Must-use plugins are always on, with nothing to activate, and can't be switched off
 from the dashboard. That makes this a good choice when you look after a site for a client. They
@@ -41,12 +46,12 @@ appear under **Plugins > Must-Use**.
 
 ### As a normal plugin
 
-Create the folder `wp-content/plugins/easy-apple-icon/`, upload the file into it, then activate
-**Easy Apple Icon** under **Plugins**.
+Go to **Plugins > Add New Plugin > Upload Plugin**, choose `easy-apple-icon.zip`, then
+**Install Now** and **Activate**.
 
 ### Inside your theme
 
-Upload the file into your child theme's folder, for example
+Unzip the download, then upload `easy-apple-icon.php` into your child theme's folder, for example
 `wp-content/themes/my-theme/easy-apple-icon.php`, and add this line to the theme's
 `functions.php`:
 
