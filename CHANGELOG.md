@@ -6,6 +6,10 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-25
+
+First release.
+
 ### Added
 
 - Answers `/apple-touch-icon.png`, `/apple-touch-icon-precomposed.png` and the allow-listed sized
@@ -19,3 +23,6 @@ All notable changes to this project are recorded here. The format follows
 - `easy_apple_icon_enabled` filter, so a theme or plugin can switch it off
 - `EASY_APPLE_ICON_STATIC_FILES` constant, and the `easy_apple_icon_source_file`,
   `easy_apple_icon_sizes` and `easy_apple_icon_cache_max_age` filters
+
+[Unreleased]: https://github.com/headwalluk/easy-apple-icon/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/headwalluk/easy-apple-icon/releases/tag/v1.0.0
