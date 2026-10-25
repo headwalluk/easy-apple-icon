@@ -122,6 +122,12 @@ notices:    { foreign: [filenames], unwritable: bool }
 ```
 
 `size` is the icon's width in pixels (e.g. `180`). `bytes` is the length of the file.
+`source_path` is relative to `ABSPATH` when the source lies under it, so a chrooted PHP-FPM and
+WP-CLI outside the chroot record the same value.
+
+The row is read and written with direct queries, not the Options API, under an exclusive
+`flock()` on the plugin file. Apple clients probe several names at once, and an object cache
+can serve a stale copy or ignore writes; either would lose file records.
 
 Write it only when something changes, never per request.
 

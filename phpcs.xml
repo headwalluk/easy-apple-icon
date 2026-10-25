@@ -22,6 +22,7 @@
 	<!-- Rules -->
 	<rule ref="WordPress">
 		<exclude name="Generic.Arrays.DisallowShortArraySyntax"/>
+		<exclude name="Universal.Arrays.DisallowShortArraySyntax"/>
 
 		<!-- An if with elseif branches ends in an explicit else, with no-op branches
 		     holding only a comment (see CLAUDE.md, Control flow). This sniff counts a comment as
@@ -32,6 +33,11 @@
 		<exclude name="Generic.CodeAnalysis.EmptyStatement.DetectedElse"/>
 	</rule>
 	
+
+	<!-- The plugin is one file holding one class (see CLAUDE.md, The deliverable is one file). -->
+	<rule ref="WordPress.Files.FileName.InvalidClassFileName">
+		<exclude-pattern>easy-apple-icon\.php$</exclude-pattern>
+	</rule>
 
 	<!-- Prefixes -->
 	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
