@@ -142,7 +142,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 			$this->save_state( $state );
 
 			if ( [] !== $failed ) {
-				$this->log_error( sprintf( 'could not delete %s from %s; they are stale until "wp %s regenerate" runs as the owner of that directory', implode( ', ', $failed ), $site_root, self::CLI_COMMAND ) );
+				$this->log_error( sprintf( 'could not delete %s from %s, which is not writable by %s; the files are stale until they are removed', implode( ', ', $failed ), $site_root, $this->describe_user( $this->get_current_user_id() ) ) );
 			}
 
 			$this->unlock_state();
@@ -156,6 +156,11 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		public function deactivate(): void {
 			if ( $this->delete_owned_files() ) {
 				delete_option( self::OPTION_STATE );
+			} elseif ( defined( 'WP_CLI' ) && WP_CLI ) {
+				// Deactivation can't be refused, so say how to finish the clean-up.
+				\WP_CLI::warning( 'The plugin\'s icon files were left in place: ' . $this->get_wrong_user_message( $this->get_site_root(), 'remove' ) . PHP_EOL . 'Reactivate the plugin to run that command, then deactivate it again.' );
+			} else {
+				// The failure is logged and recorded; the next activation sees the stale files in status.
 			}
 		}
 
@@ -209,7 +214,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 			} elseif ( $this->home_has_path() ) {
 				\WP_CLI::error( 'The home URL has a path (' . home_url( '/' ) . '). Apple devices request icons from the domain root, which this WordPress does not serve.' );
 			} elseif ( ! wp_is_writable( $site_root ) ) {
-				\WP_CLI::error( $this->get_wrong_user_message( $site_root, 'regenerate' ) );
+				\WP_CLI::error( $this->get_wrong_user_message( $site_root, 'regenerate' ) . PHP_EOL . 'Nothing was changed.' );
 			} elseif ( ! $this->delete_owned_files() ) {
 				\WP_CLI::error( 'Could not delete the existing icon files. See the last error in "wp ' . self::CLI_COMMAND . ' status".' );
 			} elseif ( '' === $source ) {
@@ -226,7 +231,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 			$site_root = $this->get_site_root();
 
 			if ( ! wp_is_writable( $site_root ) ) {
-				\WP_CLI::error( $this->get_wrong_user_message( $site_root, 'remove' ) );
+				\WP_CLI::error( $this->get_wrong_user_message( $site_root, 'remove' ) . PHP_EOL . 'Nothing was changed.' );
 			} elseif ( ! $this->delete_owned_files() ) {
 				\WP_CLI::error( 'Could not delete every icon file. See the last error in "wp ' . self::CLI_COMMAND . ' status".' );
 			} else {
@@ -303,7 +308,6 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 					'Run the command as the owner instead:',
 					'  sudo -u ' . $run_as . ' wp --path=' . untrailingslashit( ABSPATH ) . ' ' . self::CLI_COMMAND . ' ' . $subcommand,
 					'If that user is jailed (chroot), use the site path as that user sees it.',
-					'Nothing was changed.',
 				]
 			);
 		}
