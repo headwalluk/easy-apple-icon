@@ -3,7 +3,7 @@
  * Plugin Name:       Easy Apple Icon
  * Plugin URI:        https://headwall-hosting.com/plugins/easy-apple-icon/
  * Description:       Answers Apple touch-icon requests with the Site Icon, and writes them as static files, so they stop rendering the theme's 404 page.
- * Version:           1.1.0
+ * Version:           1.1.1
  * Requires at least: 6.2
  * Requires PHP:      8.2
  * Author:            Paul Faulkner
@@ -26,7 +26,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 	class Plugin {
 
 
-		public const VERSION = '1.1.0';
+		public const VERSION = '1.1.1';
 
 		private const OPTION_STATE          = 'easy_apple_icon_state';
 		private const FILTER_ENABLED        = 'easy_apple_icon_enabled';
