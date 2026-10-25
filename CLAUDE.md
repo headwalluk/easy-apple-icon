@@ -51,6 +51,7 @@ It is also bundled inside another must-use plugin, so it must tolerate being **i
 | `docs/wp-cli.md` | The commands and running them as the right user. For hosting providers |
 | `docs/contributing.md` | Bug reports, scope, PR rules, and "How it works" (design notes code comments point to) |
 | `CHANGELOG.md` | Per-version release notes |
+| `LICENSE` | GPL-2.0 text |
 | `phpcs.xml` | WordPress Coding Standards config |
 | `dev-notes/` | Private, untracked: evidence, measurements, scratch notes |
 
@@ -263,8 +264,13 @@ Never push without being asked.
 
 ## Release Workflow
 
+There is no CI: releases are rare, and every step is done by hand.
+
 1. Bump the version in **both** the header `Version:` field and `Plugin::VERSION`. They must match
    the git tag
-2. Move `CHANGELOG.md` `[Unreleased]` entries under the new version
-3. `phpcs` clean, every acceptance test in `dev-notes/spec.md` passing
-4. Tag the release
+2. Update the static badges at the top of `README.md`. The version badge (`version-X.Y.Z`) changes
+   on every release. The PHP and WordPress badges change only when the header's
+   `Requires PHP:` / `Requires at least:` do, and must always match them
+3. Move `CHANGELOG.md` `[Unreleased]` entries under the new version
+4. `phpcs` clean, every acceptance test in `dev-notes/spec.md` passing
+5. Tag the release
