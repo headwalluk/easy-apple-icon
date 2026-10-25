@@ -3,7 +3,7 @@
 [![PHP 8.2+](https://img.shields.io/badge/PHP-8.2%2B-777bb4?logo=php&logoColor=white)](https://www.php.net/supported-versions.php)
 [![WordPress 6.2+](https://img.shields.io/badge/WordPress-6.2%2B-21759b?logo=wordpress&logoColor=white)](https://wordpress.org/download/)
 [![License: GPL v2 or later](https://img.shields.io/badge/License-GPL%20v2%2B-blue)](https://www.gnu.org/licenses/gpl-2.0.html)
-[![Version 1.0.1](https://img.shields.io/badge/version-1.0.1-green)](CHANGELOG.md)
+[![Version 1.1.0](https://img.shields.io/badge/version-1.1.0-green)](CHANGELOG.md)
 
 Stops the flood of `apple-touch-icon.png` 404s in your WordPress logs.
 

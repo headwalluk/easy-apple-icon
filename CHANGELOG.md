@@ -6,6 +6,13 @@ All notable changes to this project are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-25
+
+### Added
+
+- `240` in the default size list, so `/apple-touch-icon-240x240.png` and its `-precomposed`
+  variant are answered. iPhone Safari asks for this size and doesn't fall back to the plain name
+
 ## [1.0.1] - 2026-10-25
 
 ### Fixed
@@ -37,6 +44,7 @@ First release.
 - `EASY_APPLE_ICON_STATIC_FILES` constant, and the `easy_apple_icon_source_file`,
   `easy_apple_icon_sizes` and `easy_apple_icon_cache_max_age` filters
 
-[Unreleased]: https://github.com/headwalluk/easy-apple-icon/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/headwalluk/easy-apple-icon/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/headwalluk/easy-apple-icon/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/headwalluk/easy-apple-icon/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/headwalluk/easy-apple-icon/releases/tag/v1.0.0

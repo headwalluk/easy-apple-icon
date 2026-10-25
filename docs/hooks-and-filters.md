@@ -8,7 +8,7 @@ to change what it does from a theme, a plugin or `wp-config.php`.
 | [`easy_apple_icon_enabled`](#switching-it-off) | filter | `true` | Return `false` to switch the plugin off |
 | [`EASY_APPLE_ICON_STATIC_FILES`](#not-saving-files) | constant | `true` | Set to `false` to stop the plugin saving icon files |
 | [`easy_apple_icon_source_file`](#using-a-different-image) | filter | the Site Icon's file | Use a different image |
-| [`easy_apple_icon_sizes`](#choosing-the-sizes) | filter | `57, 60, 72, 76, 114, 120, 144, 152, 167, 180` | The sizes answered at `-NNxNN` addresses |
+| [`easy_apple_icon_sizes`](#choosing-the-sizes) | filter | `57, 60, 72, 76, 114, 120, 144, 152, 167, 180, 240` | The sizes answered at `-NNxNN` addresses |
 | [`easy_apple_icon_cache_max_age`](#browser-caching) | filter | `604800` (a week) | How long browsers may cache an icon answered by PHP |
 
 If a filter returns something unusable (a file that doesn't exist, a size outside 16 to 1024, a
