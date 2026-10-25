@@ -29,6 +29,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		public const VERSION = '1.0.0';
 
 		private const OPTION_STATE          = 'easy_apple_icon_state';
+		private const FILTER_ENABLED        = 'easy_apple_icon_enabled';
 		private const FILTER_SOURCE_FILE    = 'easy_apple_icon_source_file';
 		private const FILTER_SIZES          = 'easy_apple_icon_sizes';
 		private const FILTER_CACHE_MAX_AGE  = 'easy_apple_icon_cache_max_age';
@@ -104,6 +105,8 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 
 			if ( null === $probe ) {
 				// Not an allow-listed icon name; WordPress handles it as normal.
+			} elseif ( ! $this->is_enabled() ) {
+				// Switched off by the filter; WordPress handles it as if the plugin weren't installed.
 			} elseif ( $this->home_has_path() ) {
 				// The probes go to the domain root, which this WordPress doesn't own.
 			} else {
@@ -207,6 +210,7 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 			$source    = $this->get_source_file();
 			$file_rows = [];
 
+			\WP_CLI::log( 'Enabled:      ' . ( $this->is_enabled() ? 'yes' : 'no, switched off by the ' . self::FILTER_ENABLED . ' filter' ) );
 			\WP_CLI::log( 'Source:       ' . $this->describe_source( $source ) );
 			\WP_CLI::log( 'Site root:    ' . ( '' === $site_root ? 'unknown: the siteurl path does not match the directory WordPress is in' : $site_root . ( wp_is_writable( $site_root ) ? '' : ' (not writable by ' . $this->describe_user( $this->get_current_user_id() ) . ')' ) ) );
 			\WP_CLI::log( 'Static files: ' . $this->describe_static_mode() );
@@ -241,7 +245,9 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 			$site_root = $this->get_site_root();
 			$source    = $this->get_source_file();
 
-			if ( ! $this->is_static_enabled() ) {
+			if ( ! $this->is_enabled() ) {
+				\WP_CLI::error( 'The plugin is switched off by the ' . self::FILTER_ENABLED . ' filter. Nothing was changed.' );
+			} elseif ( ! $this->is_static_enabled() ) {
 				\WP_CLI::error( 'Static files are switched off (' . self::CONSTANT_STATIC_FILES . ' is false). Icons are served dynamically; there is nothing to write.' );
 			} elseif ( is_multisite() ) {
 				\WP_CLI::error( 'Static files are not written on multisite: every site shares one site root. Icons are served dynamically.' );
@@ -951,6 +957,15 @@ if ( ! class_exists( __NAMESPACE__ . '\\Plugin' ) ) {
 		 */
 		private function get_site_icon_id(): int {
 			return (int) get_option( 'site_icon', 0 );
+		}
+
+		/**
+		 * Returns whether the easy_apple_icon_enabled filter leaves the plugin on (default true).
+		 */
+		private function is_enabled(): bool {
+			$filtered = filter_var( apply_filters( self::FILTER_ENABLED, true ), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound -- the constant holds the prefixed name
+
+			return $filtered ?? true;
 		}
 
 		/**

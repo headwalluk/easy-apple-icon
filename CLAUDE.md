@@ -116,8 +116,10 @@ No unit-test framework, and none is wanted. Exercise behaviour against a workben
   (chroot), so its paths differ from yours; give the commands in exactly this form:
   `sudo -u www-bench1 wp --path=/web/bench1.local easy-apple-icon <subcommand>`. Test the writable path over HTTP, and list the `sudo -u` commands
   that still need running in your report for the maintainer to run
-- README.md's "Running WP-CLI commands" section is for web designers who don't know Linux file
-  permissions. Keep it, and keep it in step with the wrong-user error message (spec R7)
+- README.md is written for web designers who have never used a command line: everything they
+  need (install, check, remove) works through the dashboard and SFTP/FTP. WP-CLI lives in its own
+  section for hosting providers. Its "Running WP-CLI commands" subsection is for people who don't
+  know Linux file permissions; keep it in step with the wrong-user error message (spec R7)
 
 ```bash
 SITE_PATH=/var/www/bench1.local/web
@@ -231,7 +233,7 @@ Treat these as contracts, whether or not they are documented:
 
 | Contract | Value | Breaks when |
 |----------|-------|-------------|
-| Filters | `easy_apple_icon_source_file`, `easy_apple_icon_sizes`, `easy_apple_icon_cache_max_age` | renamed or removed, or an argument is reordered |
+| Filters | `easy_apple_icon_enabled`, `easy_apple_icon_source_file`, `easy_apple_icon_sizes`, `easy_apple_icon_cache_max_age` | renamed or removed, or an argument is reordered |
 | Constant | `EASY_APPLE_ICON_STATIC_FILES` | renamed, or its meaning changes |
 | Option key | `easy_apple_icon_state` | the string changes: files already written become "foreign" and are never cleaned up |
 | State format | the per-file sha256 records | changed without reading the old shape: same failure as above |

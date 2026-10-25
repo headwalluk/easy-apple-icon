@@ -42,6 +42,11 @@ Every other request costs one cheap string check and nothing else (see CLAUDE.md
 The check runs once, when the file loads, on `$_SERVER['REQUEST_URI']`; the `parse_request`
 callback is registered only when it matches.
 
+When `easy_apple_icon_enabled` returns false, a matching request also falls through to
+WordPress, as if the plugin weren't installed. The filter is applied in the `parse_request`
+callback, not at load time, so a theme's `functions.php` can switch the plugin off. A value
+`filter_var( FILTER_VALIDATE_BOOLEAN )` can't read counts as `true`.
+
 Sizes returned by `easy_apple_icon_sizes` must be integers from 16 to 1024. If the filter
 returns anything else, or an empty list, the default list is used.
 
@@ -113,6 +118,10 @@ Do nothing at all (fall through to WordPress) when:
 - **Delete fails** (most often a Site Icon change made by `wp` running as a user who can't write
   the site root): `log_error()`, keep the file records, and `status` reports those files as
   stale. `regenerate` run as the right user fixes them. An option update can't be refused
+- The Site Icon hooks and deactivation clean up even when `easy_apple_icon_enabled` is false.
+  Switching the plugin off with the filter doesn't delete the files it already wrote, and the
+  web server goes on serving them. There is no automatic clean-up: README tells users to delete
+  them over SFTP/FTP, or with `remove`
 - **Known gap, document it in README:** a Site Icon changed by direct SQL is not noticed until
   `wp easy-apple-icon regenerate` runs
 
@@ -146,12 +155,15 @@ Write it only when something changes, never per request.
 
 `wp easy-apple-icon <subcommand>`:
 
-- `status`: source file, each allow-listed bare name (ours / foreign / missing), every recorded
+- `status`: whether `easy_apple_icon_enabled` leaves the plugin on, source file, each allow-listed bare name (ours / foreign / missing), every recorded
   file, last error
 - `regenerate`: remove the plugin's files, then write the two bare names now (a warm start, so the
   first real probe doesn't hit PHP)
-- `remove`: delete the plugin's files and clear state. This is the uninstall route for mu-plugin
-  and theme installs
+- `remove`: delete the plugin's files and clear state. Works whether or not the plugin is
+  switched off. For mu-plugin and theme installs it is the command-line alternative to deleting
+  the files by hand, which is the route README gives non-technical users
+
+`regenerate` refuses, changing nothing, when `easy_apple_icon_enabled` is false.
 
 Each exits non-zero on failure. `status` is read-only: it reports stale files, and only
 `regenerate` rewrites them.
@@ -182,6 +194,7 @@ First version: 1.0.0.
 
 | Name | Type | Default | Purpose |
 |------|------|---------|---------|
+| `easy_apple_icon_enabled` | filter, bool | `true` | `false` switches the plugin off: probes fall through to WordPress (R1) |
 | `EASY_APPLE_ICON_STATIC_FILES` | constant, bool | `true` | `false` disables R4 (serve dynamically only) |
 | `easy_apple_icon_source_file` | filter, string | Site Icon full-size path | Use a different source, e.g. an icon the theme ships |
 | `easy_apple_icon_sizes` | filter, int[] | R1 list | The size allow-list |
@@ -224,3 +237,7 @@ Run on a workbench site (see CLAUDE.md, Testing). Each test resets what it chang
     and nothing changes
 15. Unrelated requests: no option reads before the path check (inspect with Query Monitor, or
     count `get_option` calls in a `WP_DEBUG` trace)
+16. `add_filter( 'easy_apple_icon_enabled', '__return_false' )` in the theme's `functions.php`,
+    with the plugin as a mu-plugin: a probe for a name not yet written gets the theme's 404 and
+    nothing is written; `status` reports the plugin as off; `regenerate` exits non-zero and
+    changes nothing. A filter returning junk (an array) leaves the plugin on
